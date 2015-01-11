@@ -1,0 +1,55 @@
+#!/bin/sh
+
+# test if the mythconveg database is available
+settings_exists() {
+    mysqlshow -uroot "mythconverg" "settings" >/dev/null 2>&1
+}
+
+setup_running() {
+    ps -C mythtv-setup > /dev/null 2>&1
+}
+
+update_configuration() {
+    # Update ports based on SQL_PORT - 3306 uses defaults, anything else expected to be pp06 and then all the 65xx are remapped to ppxx
+
+    # bash arithmetic
+    if [$port_base -eq 33]; then
+      port_base=65
+    fi
+
+    # update ports for ALL backends in this system - which is probably what you want   
+    mysql -e "set @port_base=${port_base}" << END_SQL    
+    UPDATE settings SET data = CONVERT(@port_base + (CONVERT(data,INTEGER) % 100),TEXT)
+    WHERE value in [ "BackendServerPort","BackendStatusPort","MasterServerPort" ];
+END_SQL
+
+    # update start and stop commands to be sv stop mythbackend
+    UPDATE settings SET data="sv start mythtv" where value="BackendStartCommand" AND hostname IS NULL
+    UPDATE settings SET data="sv stop mythtv" WHERE value="BackendStopCommand" and hostname IS NULL
+
+    #TODO
+    #| BackendServerIP                 | 192.168.33.10                        | vagrant  |
+    #| BackendServerIP6                | ::1                                  | vagrant  |
+    #| MasterServerIP                  | 192.168.33.10                        | NULL     |
+    #| ServerHaltCommand               | sudo /sbin/halt -p                   | NULL     |
+
+}
+
+if ! settings_exists; then
+    echo "Mythtv database not yet created, please run mythtv-setup"
+    exit 1
+fi
+
+if setup_running; then
+    echo "Waiting for setup to finish"
+    exit 1
+fi
+
+update_configuration
+
+if setup_running; then
+    echo "Waiting for setup to finish"
+    exit 1
+fi
+
+exec mythbackend

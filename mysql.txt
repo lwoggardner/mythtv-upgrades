@@ -1,0 +1,7 @@
+LocalHostName=docker-one
+DBUserName=mythtv
+DBPassword=mythtv
+DBName=mythconverg
+DBPort=3306
+DBHostName=localhost
+
